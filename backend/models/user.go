@@ -1,8 +1,9 @@
 package models
 
 import (
-	"gorm.io/gorm"
-	"time"
+	"encoding/json"
+    "gorm.io/gorm"
+    "time"
 )
 
 type User struct {
@@ -27,12 +28,12 @@ type DatabaseConfig struct {
 
 type IndexingPreference struct {
 	gorm.Model
-	UserID          uint   `json:"user_id" gorm:"not null;uniqueIndex"`
+	UserID           uint   `json:"user_id" gorm:"not null;uniqueIndex"`
 	NFTBids         bool   `json:"nft_bids" gorm:"default:true"`
 	NFTPrices       bool   `json:"nft_prices" gorm:"default:true"`
 	BorrowableTokens bool  `json:"borrowable_tokens" gorm:"default:false"`
 	TokenPrices     bool   `json:"token_prices" gorm:"default:false"`
-	CustomFilters   string `json:"custom_filters" gorm:"type:json"`
+	CustomFilters   *json.RawMessage `json:"custom_filters" gorm:"type:jsonb;default:'{}'"` // Changed to proper JSON type
 }
 
 type DataSyncStatus struct {

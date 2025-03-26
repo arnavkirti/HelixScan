@@ -19,7 +19,7 @@ var db *gorm.DB
 
 func main() {
 	// Initialize database connection
-	dsn := "host=localhost user=postgres password=bounty123 dbname=bounty_db port=5432 sslmode=disable"
+	dsn := "host=localhost user=bounty password=bounty123 dbname=bounty_db port=5432 sslmode=disable"
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
