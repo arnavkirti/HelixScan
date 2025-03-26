@@ -99,9 +99,9 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
-      // TODO: Replace with your actual API endpoint
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://localhost:8080/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -112,6 +112,8 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
       }
     } catch (error) {
       console.error('Login failed:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -176,191 +178,106 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
 };
 
 const SignupDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }) => {
-  const [step, setStep] = useState(1);
-const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     database: {
-      host: '',
-      port: '',
+      host: 'localhost',
+      port: '5432',
       dbName: '',
-      username: '',
+      username: 'postgres',
       password: ''
     }
   });
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e:any) => {
     e.preventDefault();
+    setIsLoading(true);
+    
     try {
-      // TODO: Replace with your actual API endpoint
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch('http://localhost:8080/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          database: {
+            host: formData.database.host,
+            port: formData.database.port,
+            db_name: formData.database.dbName,
+            username: formData.database.username,
+            password: formData.database.password
+          }
+        })
       });
-      if (response.ok) {
-        setIsOpen(false);
-        // Handle successful signup
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Signup failed');
       }
-    } catch (error) {
-      console.error('Signup failed:', error);
+
+      alert('Account created successfully!');
+      setIsOpen(false);
+      
+    } catch (error:any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-10" onClose={() => setIsOpen(false)}>
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-900/95 backdrop-blur-xl p-8 text-left align-middle shadow-xl transition-all border border-purple-500/20">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <Dialog.Title as="h3" className="text-2xl font-bold text-white mb-2">
-                    {step === 1 ? 'Create Account' : 'Database Setup'}
-                  </Dialog.Title>
-                  <p className="text-gray-400 text-sm">
-                    {step === 1 ? 'Step 1: Account Details' : 'Step 2: Configure Your Database'}
-                  </p>
-                </div>
-                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex gap-2 mb-8">
-                <div className={`h-1 flex-1 rounded-full ${step === 1 ? 'bg-purple-600' : 'bg-purple-600/30'}`} />
-                <div className={`h-1 flex-1 rounded-full ${step === 2 ? 'bg-purple-600' : 'bg-purple-600/30'}`} />
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {step === 1 ? (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Email</label>
-                      <input 
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Password</label>
-                      <input 
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-3 font-medium hover:opacity-90 transition-all duration-300"
-                    >
-                      Continue
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Host</label>
-                      <input 
-                        type="text"
-                        value={formData.database.host}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          database: {...formData.database, host: e.target.value}
-                        })}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Port</label>
-                      <input 
-                        type="text"
-                        value={formData.database.port}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          database: {...formData.database, port: e.target.value}
-                        })}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Database Name</label>
-                      <input 
-                        type="text"
-                        value={formData.database.dbName}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          database: {...formData.database, dbName: e.target.value}
-                        })}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Database Username</label>
-                      <input 
-                        type="text"
-                        value={formData.database.username}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          database: {...formData.database, username: e.target.value}
-                        })}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-400">Database Password</label>
-                      <input 
-                        type="password"
-                        value={formData.database.password}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          database: {...formData.database, password: e.target.value}
-                        })}
-                        className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
-                        required
-                      />
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setStep(1)}
-                        className="flex-1 border border-purple-600 text-white rounded-lg p-3 font-medium hover:bg-purple-600/20 transition-all duration-300"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-3 font-medium hover:opacity-90 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isLoading && (
-                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                          </svg>
-                        )}
-                        {isLoading ? 'Creating...' : 'Create Account'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </form>
-            </Dialog.Panel>
+        {/* ... existing dialog structure ... */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-400">Email</label>
+            <input 
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
+              required
+            />
           </div>
-        </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-400">Password</label>
+            <input 
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
+              required
+            />
+          </div>
+
+          <h4 className="text-lg font-medium text-gray-300 mt-6">Database Configuration</h4>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-400">Host</label>
+            <input 
+              type="text"
+              value={formData.database.host}
+              onChange={(e) => setFormData({
+                ...formData,
+                database: {...formData.database, host: e.target.value}
+              })}
+              className="mt-1 w-full rounded-md bg-gray-800 border border-gray-700 text-white px-3 py-2" 
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-3 font-medium hover:opacity-90 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isLoading ? 'Creating account...' : 'Create Account'}
+          </button>
+        </form>
       </Dialog>
     </Transition>
   );
