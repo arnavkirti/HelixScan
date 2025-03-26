@@ -1,146 +1,208 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"golang.org/x/crypto/bcrypt"
+
+	"backend/models" // Update import path to match your module name
 )
 
-var db *sql.DB
-
-type User struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-func enableCORS(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-}
+var db *gorm.DB
 
 func main() {
-	// Connect to PostgreSQL
-	connStr := "user=bounty dbname=bounty_db password=bounty123 host=localhost port=5432 sslmode=disable"
+	// Initialize database connection
+	dsn := "host=localhost user=postgres password=bounty123 dbname=bounty_db port=5432 sslmode=disable"
 	var err error
-	db, err = sql.Open("postgres", connStr)
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to connect to database:", err)
 	}
-	defer db.Close()
 
-	// Initialize router
+	// Auto-migrate all models
+	err = db.AutoMigrate(
+		&models.User{},
+		&models.DatabaseConfig{},
+		&models.IndexingPreference{},
+		&models.DataSyncStatus{},
+	)
+	if err != nil {
+		log.Fatal("Failed to migrate database:", err)
+	}
+
+	// Initialize router with CORS middleware
 	r := mux.NewRouter()
-	r.HandleFunc("/signup", SignupHandler).Methods("POST", "OPTIONS")
-	r.HandleFunc("/login", LoginHandler).Methods("POST", "OPTIONS")
-	r.HandleFunc("/save-db-config", SaveDBConfigHandler).Methods("POST", "OPTIONS")
+	r.Use(corsMiddleware)
 
-	// Add CORS middleware
-	r.Use(mux.CORSMethodMiddleware(r))
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			enableCORS(&w)
-			if r.Method == "OPTIONS" {
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	})
+	// Routes
+	r.HandleFunc("/signup", signupHandler).Methods("POST", "OPTIONS")
+	r.HandleFunc("/login", loginHandler).Methods("POST", "OPTIONS")
+	r.HandleFunc("/db-config", dbConfigHandler).Methods("GET", "POST", "OPTIONS")
 
 	fmt.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
-func SignupHandler(w http.ResponseWriter, r *http.Request) {
-	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
-		return
-	}
-
-	// Insert into database
-	var userID int
-	err = db.QueryRow("INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id", user.Email, string(hashedPassword)).Scan(&userID)
-	if err != nil {
-		http.Error(w, "Email already exists", http.StatusConflict)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "User created", "user_id": userID})
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == "OPTIONS" {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
+// Add the missing dbConfigHandler
+func dbConfigHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 
-	// Get user from database
-	var dbUser struct {
-		ID           int
-		Email        string
-		PasswordHash string
-	}
-	err = db.QueryRow("SELECT id, email, password_hash FROM users WHERE email = $1", user.Email).Scan(&dbUser.ID, &dbUser.Email, &dbUser.PasswordHash)
-	if err != nil {
-		http.Error(w, "User not found", http.StatusUnauthorized)
-		return
-	}
+	switch r.Method {
+	case "GET":
+		var configs []models.DatabaseConfig
+		if err := db.Find(&configs).Error; err != nil {
+			http.Error(w, "Failed to fetch configs", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(configs)
 
-	// Compare passwords
-	err = bcrypt.CompareHashAndPassword([]byte(dbUser.PasswordHash), []byte(user.Password))
-	if err != nil {
-		http.Error(w, "Invalid password", http.StatusUnauthorized)
-		return
-	}
+	case "POST":
+		var config models.DatabaseConfig
+		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "Login successful", "user_id": dbUser.ID})
+		if err := db.Create(&config).Error; err != nil {
+			http.Error(w, "Failed to save config", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(config)
+	}
 }
 
-func SaveDBConfigHandler(w http.ResponseWriter, r *http.Request) {
-    var config struct {
-        Host         string `json:"host"`
-        Port         int    `json:"port"`
-        DatabaseName string `json:"db_name"`
-        Username     string `json:"db_username"`
-        Password     string `json:"db_password"`
-        UserID       int    `json:"user_id"`
-    }
+// Update signupHandler to return user ID and API key
+func signupHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
     
-    err := json.NewDecoder(r.Body).Decode(&config)
-    if err != nil {
-        http.Error(w, "Invalid request", http.StatusBadRequest)
+    var request struct {
+        Email    string             `json:"email"`
+        Password string             `json:"password"`
+        Database models.DatabaseConfig `json:"database"`
+    }
+
+    if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
 
-    _, err = db.Exec(`
-        INSERT INTO user_databases 
-        (user_id, host, port, db_name, db_username, db_password) 
-        VALUES ($1, $2, $3, $4, $5, $6)`,
-        config.UserID, config.Host, config.Port, config.DatabaseName, config.Username, config.Password)
+    // Hash password
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
     if err != nil {
-        http.Error(w, "Failed to save config", http.StatusInternalServerError)
+        http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+        return
+    }
+
+    // Generate API key
+    apiKey := generateAPIKey()
+
+    var user models.User
+    // Create user in transaction
+    err = db.Transaction(func(tx *gorm.DB) error {
+        user = models.User{
+            Email:    request.Email,
+            Password: string(hashedPassword),
+            ApiKey:   apiKey,
+        }
+
+        if err := tx.Create(&user).Error; err != nil {
+            return err
+        }
+
+        // Create database config
+        dbConfig := models.DatabaseConfig{
+            UserID:   user.ID,
+            Host:     request.Database.Host,
+            Port:     request.Database.Port,
+            DbName:   request.Database.DbName,
+            Username: request.Database.Username,
+            Password: request.Database.Password,
+        }
+        if err := tx.Create(&dbConfig).Error; err != nil {
+            return err
+        }
+
+        // Create indexing preferences
+        prefs := models.IndexingPreference{
+            UserID:           user.ID,
+            NFTBids:         true,
+            NFTPrices:       true,
+            BorrowableTokens: false,
+            TokenPrices:     false,
+        }
+        return tx.Create(&prefs).Error
+    })
+
+    if err != nil {
+        http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
         return
     }
 
     w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(map[string]string{"message": "Database config saved"})
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "message": "User created successfully",
+        "user_id": user.ID,
+        "api_key": user.ApiKey,
+    })
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	var creds struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	var user models.User
+	if err := db.Where("email = ?", creds.Email).First(&user).Error; err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password)); err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Return user data without password
+	response := struct {
+		ID       uint   `json:"id"`
+		Email    string `json:"email"`
+		ApiKey   string `json:"api_key"`
+	}{
+		ID:       user.ID,
+		Email:    user.Email,
+		ApiKey:   user.ApiKey,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+func generateAPIKey() string {
+	return "sk_" + time.Now().Format("20060102150405") + "_" + fmt.Sprintf("%x", time.Now().UnixNano())
 }
