@@ -90,6 +90,7 @@ export default function Home() {
   );
 }
 
+// In the LoginDialog component
 const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -99,19 +100,23 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       // TODO: Replace with your actual API endpoint
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
       if (response.ok) {
         setIsOpen(false);
-        // Handle successful login
+        // Redirect to dashboard
+        window.location.href = '/dashboard';
       }
     } catch (error) {
       console.error('Login failed:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -154,7 +159,8 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
                   />
                 </div>
                 <button 
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit} 
                   disabled={isLoading}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg p-3 font-medium hover:opacity-90 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
@@ -175,9 +181,10 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
   );
 };
 
+// In the SignupDialog component
 const SignupDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }) => {
   const [step, setStep] = useState(1);
-const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -192,19 +199,23 @@ const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       // TODO: Replace with your actual API endpoint
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch('/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
       if (response.ok) {
         setIsOpen(false);
-        // Handle successful signup
+        // Redirect to dashboard
+        window.location.href = '/dashboard';
       }
     } catch (error) {
       console.error('Signup failed:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
