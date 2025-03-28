@@ -1,7 +1,7 @@
 package main
 
 import (
-"backend/config"
+	"backend/config"
 	"backend/controllers"
 	"backend/middleware"
 	"backend/models"
