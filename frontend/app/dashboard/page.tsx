@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 
 interface DatabaseConfig {
   host: string;
@@ -47,31 +49,55 @@ export default function Dashboard() {
     errorLog: "",
   });
 
+  const router = useRouter();
+  
+  // Add authentication check
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/');
+      toast.error('Please login to access the dashboard');
+    }
+  }, [router]);
+
+  // Modify your fetch calls to include the authentication token
   const handleDbConfigSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch("/api/config/database", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(dbConfig),
       });
       if (!response.ok) throw new Error("Failed to update database config");
+      toast.success('Database configuration updated successfully');
     } catch (error) {
       console.error("Error updating database config:", error);
+      toast.error('Failed to update database configuration');
     }
   };
 
   const handlePrefsSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch("/api/config/indexing", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(indexingPrefs),
       });
       if (!response.ok) throw new Error("Failed to update indexing preferences");
+      toast.success('Indexing preferences updated successfully');
     } catch (error) {
       console.error("Error updating indexing preferences:", error);
+      toast.error('Failed to update indexing preferences');
     }
   };
 

@@ -1,6 +1,7 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, Fragment, useState } from "react";
 
 export default function Home() {
@@ -91,7 +92,11 @@ export default function Home() {
 }
 
 // In the LoginDialog component
+import { api } from '../utils/api';
+import { toast } from 'react-hot-toast';
+
 const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }) => {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -102,19 +107,17 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
     e.preventDefault();
     setIsLoading(true);
     try {
-      // TODO: Replace with your actual API endpoint
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (response.ok) {
-        setIsOpen(false);
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
-      }
+      const response = await api.login(formData.email, formData.password);
+      
+      // Store the token in localStorage
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('userId', response.user_id.toString());
+      
+      setIsOpen(false);
+      toast.success('Login successful!');
+      router.push('/dashboard');
     } catch (error) {
-      console.error('Login failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Login failed');
     } finally {
       setIsLoading(false);
     }
@@ -183,6 +186,7 @@ const LoginDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpe
 
 // In the SignupDialog component
 const SignupDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }) => {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -201,19 +205,17 @@ const SignupDialog = ({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (isOp
     e.preventDefault();
     setIsLoading(true);
     try {
-      // TODO: Replace with your actual API endpoint
-      const response = await fetch('/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (response.ok) {
-        setIsOpen(false);
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
-      }
+      const response = await api.signup(formData.email, formData.password);
+      
+      // Store the token and user ID
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('userId', response.user_id.toString());
+      
+      setIsOpen(false);
+      toast.success('Account created successfully!');
+      router.push('/dashboard');
     } catch (error) {
-      console.error('Signup failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Signup failed');
     } finally {
       setIsLoading(false);
     }
